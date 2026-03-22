@@ -1,0 +1,30 @@
+=======================================================
+  MISSION SUMMARY
+=======================================================
+
+  BOOSTER
+  -------
+  Duration:           359.0 s
+  Max altitude:       53494 m (53.5 km)
+  Max speed:            884 m/s (3181 km/h)
+  Max Q:              48567 Pa
+
+  UPPER STAGE
+  -----------
+  Duration:           372.0 s
+  Max altitude:      499832 m (499.8 km)
+  Max speed:           5551 m/s (19985 km/h)
+  Max Q:               4114 Pa
+
+  EVENTS
+  ------
+  T   -10.0s  Phase: Countdown
+  T    -3.0s  Phase: Ignition
+  T    +0.0s  Phase: Vertical Ascent
+  T   +36.0s  Phase: Gravity Turn
+  T  +131.0s  Phase: Beco
+  T  +133.0s  Phase: Booster Return
+  T  +136.0s  Phase: Upper Burn
+  T  +304.0s  Phase: Booster Landing
+  T  +349.0s  Phase: Booster Landed
+  T  +505.1s  Phase: Mission Complete
