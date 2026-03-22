@@ -247,7 +247,7 @@ class Vehicle:
         if self.flight_phase in (FlightPhase.CRASHED, FlightPhase.LANDED):
             return
 
-        on_ground = self.altitude <= 0 and self.speed < 1.0
+        on_ground = self.altitude <= 5.0 and self.speed < 1.0
         if on_ground and not self.has_left_ground:
             if self.engine_state == EngineState.BURNING:
                 self.flight_phase = FlightPhase.POWERED_ASCENT

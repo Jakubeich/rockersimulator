@@ -4,14 +4,15 @@
 
    Mission T  Vehicle     Phase                      Alt (m)   Spd (m/s)  Message
 ------------------------------------------------------------------------------------------
-     T-9.99s  mission     Countdown                      0.0         0.0  Phase: Countdown
-     T-2.99s  mission     Ignition                       0.0         0.0  Phase: Ignition
-     T+0.01s  mission     Vertical Ascent                0.0         0.0  Phase: Vertical Ascent
-    T+35.99s  mission     Gravity Turn                1596.9       100.1  Phase: Gravity Turn
-   T+131.00s  mission     Beco                       38413.7       883.6  Phase: Beco
-   T+133.01s  mission     Booster Return             40087.7       864.4  Phase: Booster Return
-   T+136.02s  mission     Upper Burn                 42468.7       799.0  Phase: Upper Burn
-   T+304.98s  mission     Booster Landing            10801.9       521.8  Phase: Booster Landing
-   T+352.58s  mission     Booster Landed                 0.0         0.0  Phase: Booster Landed
-   T+404.84s  mission     Upper Return                   0.0         0.0  Phase: Upper Return
-   T+698.63s  mission     Upper Landing                  0.0         0.0  Phase: Upper Landing
+     T-9.99s  mission     Countdown                      2.0         0.1  Phase: Countdown
+     T-2.99s  mission     Ignition                       2.0         0.1  Phase: Ignition
+     T+0.01s  mission     Vertical Ascent                2.0         0.0  Phase: Vertical Ascent
+    T+35.99s  mission     Gravity Turn                1599.0       100.1  Phase: Gravity Turn
+   T+131.00s  mission     Beco                       38416.4       883.6  Phase: Beco
+   T+133.01s  mission     Booster Return             40090.5       864.4  Phase: Booster Return
+   T+136.02s  mission     Upper Burn                 42471.5       799.0  Phase: Upper Burn
+   T+305.01s  mission     Booster Landing            10798.5       521.7  Phase: Booster Landing
+   T+343.04s  mission     Booster Landed                 2.0         0.0  Phase: Booster Landed
+   T+404.84s  mission     Upper Return                   2.0         0.0  Phase: Upper Return
+   T+698.65s  mission     Upper Landing                  2.0         0.0  Phase: Upper Landing
+   T+822.54s  mission     Mission Complete               2.0         0.0  Phase: Mission Complete

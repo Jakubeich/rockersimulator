@@ -29,6 +29,8 @@ class Simulation:
         self.booster.payload_mass = (
             cfg.vehicle.upper_stage.dry_mass + cfg.vehicle.upper_stage.fuel_mass
         )
+        # Place booster on launch pad surface
+        self.booster.state.y = cfg.pads.pad_height
 
         self.sequencer = MissionSequencer(cfg.autopilot, cfg.pads)
         self.telemetry = MissionTelemetry(sample_interval=0.1)
@@ -135,6 +137,7 @@ class Simulation:
         self.booster.payload_mass = (
             cfg.vehicle.upper_stage.dry_mass + cfg.vehicle.upper_stage.fuel_mass
         )
+        self.booster.state.y = cfg.pads.pad_height
         self.sequencer.reset()
         self.telemetry.clear()
         self.paused = cfg.simulation.paused_on_start

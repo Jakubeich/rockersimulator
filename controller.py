@@ -13,7 +13,7 @@ import math
 from enum import Enum, auto
 
 from config import AutopilotConfig, PadConfig
-from rocket import EngineState, Vehicle
+from rocket import EngineState, FlightPhase, Vehicle
 from utils import clamp, wrap_angle
 
 
@@ -129,6 +129,7 @@ class MissionSequencer:
         # Pad positions
         self._launch_x = pad_cfg.launch_x if pad_cfg else 0.0
         self._landing_x = pad_cfg.landing_x if pad_cfg else 0.0
+        self._pad_height = pad_cfg.pad_height if pad_cfg else 2.0
 
         g = cfg.ascent_pid
         self.ascent_pid = PIDController(kp=g.kp, ki=g.ki, kd=g.kd)
@@ -198,6 +199,10 @@ class MissionSequencer:
         if ph == MissionPhase.COUNTDOWN:
             b.set_throttle(0.0)
             b.set_gimbal(0.0)
+            # Hold on pad
+            b.state.x = 0.0
+            b.state.y = self._pad_height
+            b.state.vx = b.state.vy = b.state.omega = 0.0
             if self._clock >= -self.IGNITION_LEAD:
                 self.phase = MissionPhase.IGNITION
 
@@ -205,7 +210,8 @@ class MissionSequencer:
             t = self._clock + self.IGNITION_LEAD
             b.set_throttle(clamp(t * self.THROTTLE_RAMP_RATE, 0.0, 1.0))
             b.set_gimbal(0.0)
-            b.state.x = b.state.y = 0.0
+            b.state.x = 0.0
+            b.state.y = self._pad_height
             b.state.vx = b.state.vy = b.state.omega = 0.0
             if self._clock >= 0.0:
                 self.phase = MissionPhase.VERTICAL_ASCENT
@@ -370,10 +376,15 @@ class MissionSequencer:
         else:
             self._rcs_steer(b, target_angle, dt)
 
-        if b.altitude <= 0.5 and abs(b.state.vy) < 30.0:
+        if b.altitude <= self._pad_height + 0.5 and abs(b.state.vy) < 30.0:
             b.shutdown_engine()
             b.state.vy = 0.0
             b.state.vx = 0.0
+            b.state.omega = 0.0
+            b.state.theta = math.pi / 2
+            b.state.y = self._pad_height
+            b.state.x = self._landing_x
+            b.flight_phase = FlightPhase.LANDED
             return
 
         # Terminal guidance: lateral RCS to steer precisely to pad
@@ -568,12 +579,15 @@ class MissionSequencer:
 
     def _upper_landing(self, u: Vehicle, dt: float) -> None:
         """Upper stage landing: retrograde braking then vertical touchdown."""
-        if u.altitude <= 0.5 and u.speed < 30.0:
+        if u.altitude <= self._pad_height + 0.5 and u.speed < 30.0:
             u.shutdown_engine()
             u.state.vy = 0.0
             u.state.vx = 0.0
             u.state.omega = 0.0
             u.state.theta = math.pi / 2
+            u.state.y = self._pad_height
+            u.state.x = self._launch_x
+            u.flight_phase = FlightPhase.LANDED
             return
 
         h = max(u.altitude, 0.5)
