@@ -30,10 +30,10 @@ class Simulation:
             cfg.vehicle.upper_stage.dry_mass + cfg.vehicle.upper_stage.fuel_mass
         )
 
-        self.sequencer = MissionSequencer(cfg.autopilot)
+        self.sequencer = MissionSequencer(cfg.autopilot, cfg.pads)
         self.telemetry = MissionTelemetry(sample_interval=0.1)
         self.renderer = Renderer(
-            cfg.render, cfg.landing_pad,
+            cfg.render, cfg.pads,
             cfg.vehicle.booster, cfg.vehicle.upper_stage)
 
         self.paused = cfg.simulation.paused_on_start

@@ -12,7 +12,7 @@ from typing import Sequence
 import numpy as np
 import pygame
 
-from config import LandingPadConfig, RenderConfig, StageConfig
+from config import PadConfig, RenderConfig, StageConfig
 from rocket import EngineState, FlightPhase, Vehicle
 from utils import clamp, direction_from_angle, magnitude
 
@@ -62,7 +62,7 @@ class Camera:
 # ---------------------------------------------------------------------------
 
 class Renderer:
-    def __init__(self, cfg: RenderConfig, pad_cfg: LandingPadConfig,
+    def __init__(self, cfg: RenderConfig, pad_cfg: PadConfig,
                  booster_cfg: StageConfig, upper_cfg: StageConfig) -> None:
         self.cfg = cfg
         self.pad = pad_cfg
@@ -145,16 +145,58 @@ class Renderer:
                              (0, gy), (self.cfg.screen_width, gy), 2)
 
     def _draw_landing_pad(self) -> None:
-        px, py = self.camera.world_to_screen(self.pad.x_position, self.pad.height / 2)
-        hw = max(int(self.pad.width / 2 * self.camera.zoom), 8)
-        hh = max(int(self.pad.height * self.camera.zoom), 2)
+        self._draw_pad_at(self.pad.launch_x, is_launch=True)
+        self._draw_pad_at(self.pad.landing_x, is_launch=False)
+
+    def _draw_pad_at(self, world_x: float, is_launch: bool) -> None:
+        """Draw a single pad with SpaceX-style markings."""
+        px, py = self.camera.world_to_screen(world_x, self.pad.pad_height / 2)
+        _, gy = self.camera.world_to_screen(0, 0)
+        hw = max(int(self.pad.pad_width / 2 * self.camera.zoom), 10)
+        hh = max(int(self.pad.pad_height * self.camera.zoom), 2)
+
+        # Pad base
+        base_color = (70, 70, 70) if is_launch else (50, 50, 50)
         rect = pygame.Rect(px - hw, py - hh, hw * 2, hh * 2)
-        pygame.draw.rect(self.screen, self.cfg.pad_color, rect)
-        # X marking
-        pygame.draw.line(self.screen, (200, 60, 60),
-                         (px - hw // 2, py - hh), (px + hw // 2, py + hh), 2)
-        pygame.draw.line(self.screen, (200, 60, 60),
-                         (px + hw // 2, py - hh), (px - hw // 2, py + hh), 2)
+        pygame.draw.rect(self.screen, base_color, rect)
+        # Border
+        pygame.draw.rect(self.screen, (120, 120, 120), rect, 1)
+
+        if is_launch:
+            # Launch pad: tower structure
+            tower_h = max(int(60 * self.camera.zoom), 8)
+            tower_w = max(int(3 * self.camera.zoom), 2)
+            tx = px + hw - tower_w
+            pygame.draw.rect(self.screen, (100, 100, 110),
+                             (tx, py - hh - tower_h, tower_w, tower_h))
+            # Launch arm
+            arm_w = max(int(15 * self.camera.zoom), 4)
+            arm_y = py - hh - tower_h * 2 // 3
+            pygame.draw.line(self.screen, (90, 90, 100),
+                             (tx, arm_y), (tx - arm_w, arm_y), max(int(2 * self.camera.zoom), 1))
+            # Label
+            if hw > 15:
+                label = self.font.render("LC", True, (150, 150, 160))
+                self.screen.blit(label, (px - label.get_width() // 2, py + hh + 2))
+        else:
+            # Landing zone: SpaceX-style target circle with X
+            radius = max(hw * 2 // 3, 6)
+            # Outer circle
+            pygame.draw.circle(self.screen, (180, 180, 180), (px, py), radius, max(int(1.5 * self.camera.zoom), 1))
+            # Inner filled circle
+            inner_r = max(radius // 3, 3)
+            pygame.draw.circle(self.screen, (200, 60, 60), (px, py), inner_r)
+            # X marking
+            xr = radius * 2 // 3
+            lw = max(int(1.5 * self.camera.zoom), 1)
+            pygame.draw.line(self.screen, (200, 60, 60),
+                             (px - xr, py - xr), (px + xr, py + xr), lw)
+            pygame.draw.line(self.screen, (200, 60, 60),
+                             (px + xr, py - xr), (px - xr, py + xr), lw)
+            # Label
+            if hw > 15:
+                label = self.font.render("LZ", True, (150, 150, 160))
+                self.screen.blit(label, (px - label.get_width() // 2, py + hh + 2))
 
     # ----- Trail ---------------------------------------------------------
 

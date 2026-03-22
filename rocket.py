@@ -234,6 +234,10 @@ class Vehicle:
 
         self._update_flight_phase()
 
+        # Normalize theta to [-π, π] — sin/cos periodic, prevents visual spin
+        self.state.theta = math.atan2(
+            math.sin(self.state.theta), math.cos(self.state.theta))
+
         self.time += dt
         self.max_altitude = max(self.max_altitude, self.altitude)
         self.max_speed = max(self.max_speed, self.speed)

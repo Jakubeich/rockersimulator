@@ -11,6 +11,7 @@
    T+131.00s  mission     Beco                       38413.7       883.6  Phase: Beco
    T+133.01s  mission     Booster Return             40087.7       864.4  Phase: Booster Return
    T+136.02s  mission     Upper Burn                 42468.7       799.0  Phase: Upper Burn
-   T+303.99s  mission     Booster Landing            11151.9       523.5  Phase: Booster Landing
-   T+349.03s  mission     Booster Landed                 0.0         0.0  Phase: Booster Landed
-   T+505.11s  mission     Mission Complete               0.0         0.0  Phase: Mission Complete
+   T+304.98s  mission     Booster Landing            10801.9       521.8  Phase: Booster Landing
+   T+352.58s  mission     Booster Landed                 0.0         0.0  Phase: Booster Landed
+   T+404.84s  mission     Upper Return                   0.0         0.0  Phase: Upper Return
+   T+698.63s  mission     Upper Landing                  0.0         0.0  Phase: Upper Landing

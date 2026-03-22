@@ -70,8 +70,8 @@ class VehicleConfig:
         max_thrust=80_000.0,
         isp=348.0,
         num_engines=1,
-        min_throttle=0.5,
-        fuel_reserve_fraction=0.0,
+        min_throttle=0.4,
+        fuel_reserve_fraction=0.50,   # reserve for return/landing
         length=10.0,
         diameter=2.5,
         max_gimbal_angle=0.10,
@@ -84,10 +84,12 @@ class VehicleConfig:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class LandingPadConfig:
-    x_position: float = 0.0     # world-x of pad centre (same as launch site)
-    width: float = 30.0         # m
-    height: float = 2.0         # m (visual)
+class PadConfig:
+    """Launch and landing pad configuration."""
+    launch_x: float = 0.0        # launch pad world-x (booster starts here)
+    landing_x: float = -2000.0   # landing zone for booster (~2km from launch)
+    pad_width: float = 30.0      # m — physical width of each pad
+    pad_height: float = 2.0      # m — visual height
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +178,7 @@ class RenderConfig:
 @dataclass
 class AppConfig:
     vehicle: VehicleConfig = field(default_factory=VehicleConfig)
-    landing_pad: LandingPadConfig = field(default_factory=LandingPadConfig)
+    pads: PadConfig = field(default_factory=PadConfig)
     environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
     autopilot: AutopilotConfig = field(default_factory=AutopilotConfig)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
