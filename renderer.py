@@ -28,11 +28,20 @@ class Camera:
         self.zoom: float = cfg.pixels_per_meter
         self.target_x: float = 0.0
         self.target_y: float = 0.0
+        # Smoothed theta for visual offset — prevents PID oscillation jitter
+        self._smooth_theta: float = math.pi / 2
+        self._initialized: bool = False
 
     def world_to_screen(self, wx: float, wy: float) -> tuple[int, int]:
         sx = self.cfg.screen_width / 2 + (wx - self.target_x) * self.zoom
         sy = self.cfg.screen_height / 2 - (wy - self.target_y) * self.zoom
-        return int(sx), int(sy)
+        return round(sx), round(sy)
+
+    def world_to_screen_f(self, wx: float, wy: float) -> tuple[float, float]:
+        """Float version — avoids rounding jitter for vehicle drawing."""
+        sx = self.cfg.screen_width / 2 + (wx - self.target_x) * self.zoom
+        sy = self.cfg.screen_height / 2 - (wy - self.target_y) * self.zoom
+        return sx, sy
 
     def zoom_in(self) -> None:
         self.zoom = min(self.zoom * self.cfg.zoom_speed, self.cfg.max_zoom)
@@ -40,25 +49,40 @@ class Camera:
     def zoom_out(self) -> None:
         self.zoom = max(self.zoom / self.cfg.zoom_speed, self.cfg.min_zoom)
 
-    def follow(self, v: Vehicle, smoothing: float = 0.12,
-               visual_offset: float = 0.0) -> None:
+    def follow(self, v: Vehicle, visual_offset: float = 0.0) -> None:
+        # Use raw theta — the position smoothing handles all jitter
         a = v.state.theta
         tx = v.state.x + math.cos(a) * visual_offset
         ty = v.state.y + math.sin(a) * visual_offset
-        speed = (v.state.vx ** 2 + v.state.vy ** 2) ** 0.5
-        if speed > 10:
-            lead = min(speed * 0.3, 500.0) / max(self.zoom, 0.001)
-            tx += v.state.vx / speed * lead * 0.3
-            ty += v.state.vy / speed * lead * 0.3
-        self.target_x += (tx - self.target_x) * smoothing
-        self.target_y += (ty - self.target_y) * smoothing
+
+        # Zoom-adaptive smoothing:
+        #   high zoom (close up) → instant follow (no visible lag)
+        #   low zoom (far away)  → gentle smoothing (cinematic)
+        smoothing = clamp(self.zoom * 0.8, 0.12, 1.0)
+
+        dx = tx - self.target_x
+        dy = ty - self.target_y
+
+        # Large jumps (focus switch) → snap faster
+        dist_px = math.hypot(dx, dy) * self.zoom
+        if dist_px > 500:
+            smoothing = 1.0
+
+        self.target_x += dx * smoothing
+        self.target_y += dy * smoothing
 
     def auto_zoom(self, v: Vehicle) -> None:
         extent = max(abs(v.altitude), abs(v.state.x), 50.0)
         desired = self.cfg.screen_height * 0.4 / extent
         desired = clamp(desired, self.cfg.min_zoom, self.cfg.max_zoom)
-        rate = 0.04 if desired < self.zoom else 0.02
-        self.zoom += (desired - self.zoom) * rate
+        # Very gentle zoom changes — zooming out slower to reduce jitter
+        rate = 0.015 if desired < self.zoom else 0.01
+        new_zoom = self.zoom + (desired - self.zoom) * rate
+        # Snap when change is sub-perceptual
+        if abs(new_zoom - self.zoom) / max(self.zoom, 0.001) < 0.0001:
+            self.zoom = desired
+        else:
+            self.zoom = new_zoom
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +145,7 @@ class ParticleSystem:
             r = min(255, int(r * t + 80 * (1 - t)))
             g = min(255, int(g * t * 0.6))
             b = min(255, int(b * t * 0.3))
-            sz = max(int(p.size * camera.zoom * 0.5), 1)
+            sz = max(round(p.size * camera.zoom * 0.5), 1)
             if sz <= 1:
                 screen.set_at((sx, sy), (r, g, b))
             else:
@@ -172,7 +196,8 @@ class Renderer:
         self.booster_cfg = booster_cfg
         self.upper_cfg = upper_cfg
         self.screen = pygame.display.set_mode(
-            (cfg.screen_width, cfg.screen_height), pygame.RESIZABLE)
+            (cfg.screen_width, cfg.screen_height),
+            pygame.RESIZABLE | pygame.DOUBLEBUF)
         pygame.display.set_caption("Rocket Simulator")
         self.camera = Camera(cfg)
 
@@ -200,7 +225,12 @@ class Renderer:
         upper_trail: Sequence[tuple[float, float]],
         sequencer: object,
         paused: bool,
+        render_alpha: float = 0.0,
     ) -> None:
+        # Interpolate states for smooth rendering (fix-your-timestep)
+        self._apply_interpolation(booster, render_alpha)
+        self._apply_interpolation(upper, render_alpha)
+
         focus = booster if self._focus == "booster" else upper
         focus_cfg = self.booster_cfg if self._focus == "booster" else self.upper_cfg
         if not focus.is_active:
@@ -259,6 +289,25 @@ class Renderer:
 
         pygame.display.flip()
 
+        # Restore original states after rendering
+        self._restore_state(booster)
+        self._restore_state(upper)
+
+    def _apply_interpolation(self, v: Vehicle, alpha: float) -> None:
+        """Swap vehicle state with interpolated state for rendering."""
+        if alpha <= 0 or v._prev_state is None or v.is_terminated:
+            v._render_backup = None
+            return
+        v._render_backup = v.state  # type: ignore[attr-defined]
+        v.state = v.render_state(alpha)
+
+    @staticmethod
+    def _restore_state(v: Vehicle) -> None:
+        backup = getattr(v, '_render_backup', None)
+        if backup is not None:
+            v.state = backup
+            v._render_backup = None  # type: ignore[attr-defined]
+
     # ----- Background --------------------------------------------------------
 
     def _draw_sky(self, focus: Vehicle) -> None:
@@ -291,7 +340,8 @@ class Renderer:
         alt = self.camera.target_y
         if alt < 20_000:
             return
-        _, gy = self.camera.world_to_screen(0, 0)
+        _, gy_f = self.camera.world_to_screen_f(0, 0)
+        gy = round(gy_f)
         if gy > self.cfg.screen_height + 100:
             return
         # Thin blue line at horizon
@@ -308,7 +358,8 @@ class Renderer:
         self.screen.blit(glow_surf, (0, gy - glow_h))
 
     def _draw_ground(self) -> None:
-        _, gy = self.camera.world_to_screen(0, 0)
+        _, gy_f = self.camera.world_to_screen_f(0, 0)
+        gy = round(gy_f)
         w, h = self.cfg.screen_width, self.cfg.screen_height
         if gy >= h:
             return
@@ -515,26 +566,37 @@ class Renderer:
         a_off = v.state.theta
         vis_x = v.state.x + math.cos(a_off) * scfg.length / 2
         vis_y = v.state.y + math.sin(a_off) * scfg.length / 2
-        cx, cy = self.camera.world_to_screen(vis_x, vis_y)
+        # Use float center to avoid per-vertex rounding jitter
+        fcx, fcy = self.camera.world_to_screen_f(vis_x, vis_y)
+        cx, cy = round(fcx), round(fcy)
         hl = max(scfg.length / 2 * self.camera.zoom, 10)
         hw = max(scfg.diameter / 2 * self.camera.zoom, 2.5)
         a = v.state.theta
         ca, sa = math.cos(a), math.sin(a)
 
-        def l2s(lx: float, ly: float) -> tuple[int, int]:
-            return int(cx + ca * lx - sa * ly), int(cy - sa * lx - ca * ly)
+        def l2s(lx: float, ly: float) -> tuple[float, float]:
+            """Local-to-screen using float center — round only at draw time."""
+            return (fcx + ca * lx - sa * ly, fcy - sa * lx - ca * ly)
 
-        # Landing legs (when descending near ground or landed)
-        if v.flight_phase == FlightPhase.LANDED or (v.vertical_speed < -1 and v.altitude < 2000):
-            leg_extend = 1.0 if v.flight_phase == FlightPhase.LANDED else clamp(1.0 - v.altitude / 2000, 0.0, 1.0)
-            leg_len = hw * 2.5 * leg_extend
-            leg_w = max(int(1.5 * self.camera.zoom), 1)
+        def l2si(lx: float, ly: float) -> tuple[int, int]:
+            """Integer version for APIs that need it."""
+            x, y = l2s(lx, ly)
+            return round(x), round(y)
+
+        # Landing legs — smooth deployment based on altitude, no hard threshold
+        leg_factor = 0.0
+        if v.flight_phase == FlightPhase.LANDED:
+            leg_factor = 1.0
+        elif v.altitude < 2000 and v.has_left_ground:
+            leg_factor = clamp(1.0 - v.altitude / 2000, 0.0, 1.0)
+        if leg_factor > 0.01:
+            leg_len = hw * 2.5 * leg_factor
+            leg_w = max(round(1.5 * self.camera.zoom), 1)
             for sign in (1, -1):
-                base = l2s(-hl * 0.9, sign * hw * 0.5)
-                tip = l2s(-hl * 0.9 - leg_len * 0.5, sign * (hw + leg_len))
+                base = l2si(-hl * 0.9, sign * hw * 0.5)
+                tip = l2si(-hl * 0.9 - leg_len * 0.5, sign * (hw + leg_len))
                 pygame.draw.line(self.screen, (140, 140, 150), base, tip, leg_w)
-                # Foot
-                foot = l2s(-hl * 0.9 - leg_len * 0.3, sign * (hw + leg_len + hw * 0.3))
+                foot = l2si(-hl * 0.9 - leg_len * 0.3, sign * (hw + leg_len + hw * 0.3))
                 pygame.draw.line(self.screen, (140, 140, 150), tip, foot, leg_w)
 
         # Body — tapered shape
@@ -582,11 +644,12 @@ class Renderer:
             tip_pts = nose_pts_right[-3:] + nose_pts_left[-3:][::-1]
             pygame.draw.polygon(self.screen, (230, 80, 80), tip_pts)
 
-        # Grid fins (when descending)
+        # Grid fins — smooth deployment (no hard threshold flicker)
         if v.has_left_ground:
-            fin_deploy = 1.0 if v.vertical_speed < 0 else 0.5
+            # Smoothly interpolate: fully deployed when descending, half when ascending
+            fin_deploy = clamp(0.75 - v.vertical_speed * 0.005, 0.5, 1.0)
             fs = hw * 1.2 * fin_deploy
-            fw = max(int(1.5 * self.camera.zoom), 1)
+            fw = max(round(1.5 * self.camera.zoom), 1)
             for sign in (1, -1):
                 # Grid fin shape
                 fin = [
@@ -611,10 +674,11 @@ class Renderer:
 
         # Flame
         if v.engine_state == EngineState.BURNING and v.throttle > 0:
-            self._draw_flame(v, scfg, cx, cy, hl, hw, a)
+            self._draw_flame(v, scfg, fcx, fcy, hl, hw, a)
 
     def _draw_flame(self, v: Vehicle, scfg: StageConfig,
-                    cx, cy, hl, hw, angle) -> None:
+                    cx: float, cy: float, hl: float, hw: float,
+                    angle: float) -> None:
         throttle = v.throttle
         fa = angle + math.pi + v.gimbal_angle
         fc, fs = math.cos(fa), math.sin(fa)
@@ -622,11 +686,12 @@ class Renderer:
         by = math.sin(angle) * (-hl)
 
         def fp(lx, ly):
-            return (int(cx + bx + fc * lx - fs * ly),
-                    int(cy - by - fs * lx - fc * ly))
+            return (cx + bx + fc * lx - fs * ly,
+                    cy - by - fs * lx - fc * ly)
 
-        flicker = 0.85 + 0.15 * math.sin(self._frame_count * 0.7)
-        flicker2 = 0.9 + 0.1 * math.sin(self._frame_count * 1.3 + 1.0)
+        # Gentle flicker — slower frequency, smaller amplitude to reduce visual noise
+        flicker = 0.92 + 0.08 * math.sin(self._frame_count * 0.3)
+        flicker2 = 0.94 + 0.06 * math.sin(self._frame_count * 0.5 + 1.0)
 
         # Outer flame (orange-red)
         fl = hl * 0.7 * throttle * flicker
@@ -692,8 +757,8 @@ class Renderer:
         vis_x = v.state.x + math.cos(a) * scfg.length / 2
         vis_y = v.state.y + math.sin(a) * scfg.length / 2
         cx, cy = self.camera.world_to_screen(vis_x, vis_y)
-        # Glow oriented along velocity
-        radius = max(int(20 * intensity * self.camera.zoom * 5), 4)
+        # Glow oriented along velocity — use round() for stable sizing
+        radius = max(round(20 * intensity * self.camera.zoom * 5), 4)
         radius = min(radius, 80)
 
         # Multi-layer glow
@@ -726,17 +791,16 @@ class Renderer:
         if v.speed > 1.0:
             s = min(80, v.speed * 0.3)
             vd = v.velocity / v.speed
-            ex, ey = int(cx + vd[0] * s), int(cy - vd[1] * s)
+            ex, ey = round(cx + vd[0] * s), round(cy - vd[1] * s)
             pygame.draw.line(self.screen, self.cfg.velocity_vector_color,
                              (cx, cy), (ex, ey), 2)
-            # Arrow head
             _draw_arrowhead(self.screen, (cx, cy), (ex, ey),
                             self.cfg.velocity_vector_color, 6)
         if v.current_thrust > 0:
             ta = v.state.theta + v.gimbal_angle
             td = direction_from_angle(ta)
             s = min(60, v.current_thrust / v.cfg.max_thrust * 60)
-            ex, ey = int(cx + td[0] * s), int(cy - td[1] * s)
+            ex, ey = round(cx + td[0] * s), round(cy - td[1] * s)
             pygame.draw.line(self.screen, self.cfg.thrust_vector_color,
                              (cx, cy), (ex, ey), 2)
             _draw_arrowhead(self.screen, (cx, cy), (ex, ey),
@@ -942,16 +1006,21 @@ class Renderer:
 
     def toggle_focus(self) -> str:
         self._focus = "upper" if self._focus == "booster" else "booster"
+        self.camera._initialized = False  # re-init smooth theta for new target
         return self._focus
 
     def toggle_auto_zoom(self) -> bool:
         self._auto_zoom = not self._auto_zoom
         return self._auto_zoom
 
+    def disable_auto_zoom(self) -> None:
+        self._auto_zoom = False
+
     def handle_resize(self, w: int, h: int) -> None:
         self.cfg.screen_width = w
         self.cfg.screen_height = h
-        self.screen = pygame.display.set_mode((w, h), pygame.RESIZABLE)
+        self.screen = pygame.display.set_mode(
+            (w, h), pygame.RESIZABLE | pygame.DOUBLEBUF)
 
 
 def _draw_arrowhead(screen, start, end, color, size=6):

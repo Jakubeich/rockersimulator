@@ -72,6 +72,9 @@ class Vehicle:
         # Extra payload mass (e.g. upper stage riding on booster)
         self.payload_mass: float = 0.0
 
+        # Previous state for render interpolation
+        self._prev_state: RocketState | None = None
+
         self.time: float = 0.0
         self.max_altitude: float = 0.0
         self.max_speed: float = 0.0
@@ -182,6 +185,14 @@ class Vehicle:
         if not self.is_active or self.is_terminated:
             return
 
+        # Save state for render interpolation
+        self._prev_state = RocketState(
+            x=self.state.x, y=self.state.y,
+            vx=self.state.vx, vy=self.state.vy,
+            theta=self.state.theta, omega=self.state.omega,
+            fuel=self.state.fuel,
+        )
+
         effective_throttle = self.throttle if self.engine_state == EngineState.BURNING else 0.0
         # Scale burn rate by active engine fraction
         engine_frac = self.active_engines / max(self.cfg.num_engines, 1)
@@ -264,6 +275,30 @@ class Vehicle:
             self.flight_phase = FlightPhase.COAST
         else:
             self.flight_phase = FlightPhase.DESCENT
+
+    def render_state(self, alpha: float) -> RocketState:
+        """Extrapolate state forward for smooth rendering.
+
+        alpha = fraction of a physics step that hasn't been simulated yet.
+        Uses the last step's delta to predict where the vehicle will be.
+        """
+        if self._prev_state is None or alpha <= 0:
+            return self.state
+        # Forward extrapolation: current + alpha * (current - prev)
+        p = self._prev_state
+        s = self.state
+        inv = 1.0 + alpha
+        # Interpolate: prev.lerp(current, 1+alpha) = extrapolate past current
+        st = math.sin(p.theta) * (1 - inv) + math.sin(s.theta) * inv
+        ct = math.cos(p.theta) * (1 - inv) + math.cos(s.theta) * inv
+        return RocketState(
+            x=p.x + (s.x - p.x) * inv,
+            y=p.y + (s.y - p.y) * inv,
+            vx=s.vx, vy=s.vy,
+            theta=math.atan2(st, ct),
+            omega=s.omega,
+            fuel=s.fuel,
+        )
 
     # ----- State transfer (for separation) --------------------------------
 

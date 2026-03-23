@@ -11,6 +11,7 @@ from controller import MissionSequencer
 from renderer import Renderer
 from rocket import Vehicle
 from telemetry import MissionTelemetry
+from utils import clamp
 
 
 class Simulation:
@@ -87,6 +88,7 @@ class Simulation:
             elif event.type == pygame.MOUSEWHEEL:
                 (self.renderer.camera.zoom_in if event.y > 0
                  else self.renderer.camera.zoom_out)()
+                self.renderer.disable_auto_zoom()
             elif event.type == pygame.VIDEORESIZE:
                 self.renderer.handle_resize(event.w, event.h)
 
@@ -109,8 +111,10 @@ class Simulation:
             self.renderer.toggle_auto_zoom()
         elif key in (pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS):
             self.renderer.camera.zoom_in()
+            self.renderer.disable_auto_zoom()
         elif key in (pygame.K_MINUS, pygame.K_KP_MINUS):
             self.renderer.camera.zoom_out()
+            self.renderer.disable_auto_zoom()
         elif key == pygame.K_1:
             self.cfg.simulation.time_warp = 1.0
         elif key == pygame.K_2:
@@ -120,12 +124,21 @@ class Simulation:
         elif key == pygame.K_4:
             self.cfg.simulation.time_warp = 10.0
 
+    @property
+    def _render_alpha(self) -> float:
+        """Fraction of a physics step remaining — for render interpolation."""
+        dt = self.cfg.simulation.dt
+        if dt <= 0:
+            return 0.0
+        return clamp(self._phys_acc / dt, 0.0, 1.0)
+
     def _render(self) -> None:
         self.renderer.draw(
             self.booster, self.upper,
             self.telemetry.booster.trajectory,
             self.telemetry.upper.trajectory,
-            self.sequencer, self.paused)
+            self.sequencer, self.paused,
+            self._render_alpha)
 
     def _reset(self) -> None:
         cfg = self.cfg

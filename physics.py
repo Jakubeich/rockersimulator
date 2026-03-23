@@ -188,6 +188,22 @@ class RocketState:
     def from_array(cls, a: np.ndarray) -> "RocketState":
         return cls(x=a[0], y=a[1], vx=a[2], vy=a[3], theta=a[4], omega=a[5], fuel=a[6])
 
+    def lerp(self, other: "RocketState", t: float) -> "RocketState":
+        """Linearly interpolate between self and other by factor t ∈ [0,1]."""
+        inv = 1.0 - t
+        # Angle interpolation via sin/cos to handle wrapping
+        s_theta = math.sin(self.theta) * inv + math.sin(other.theta) * t
+        c_theta = math.cos(self.theta) * inv + math.cos(other.theta) * t
+        return RocketState(
+            x=self.x * inv + other.x * t,
+            y=self.y * inv + other.y * t,
+            vx=self.vx * inv + other.vx * t,
+            vy=self.vy * inv + other.vy * t,
+            theta=math.atan2(s_theta, c_theta),
+            omega=self.omega * inv + other.omega * t,
+            fuel=self.fuel * inv + other.fuel * t,
+        )
+
 
 def state_derivative(
     state: RocketState,
