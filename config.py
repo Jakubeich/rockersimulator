@@ -134,7 +134,7 @@ class SimulationConfig:
     dt: float = 0.01
     max_duration: float = 3000.0
     integration_method: str = "rk4"
-    paused_on_start: bool = False
+    paused_on_start: bool = True
     time_warp: float = 1.0
 
 

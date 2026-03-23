@@ -1,0 +1,10 @@
+# Telemetry output
+output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/

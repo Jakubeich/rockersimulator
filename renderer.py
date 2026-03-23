@@ -226,6 +226,7 @@ class Renderer:
         sequencer: object,
         paused: bool,
         render_alpha: float = 0.0,
+        started: bool = True,
     ) -> None:
         # Interpolate states for smooth rendering (fix-your-timestep)
         self._apply_interpolation(booster, render_alpha)
@@ -283,7 +284,7 @@ class Renderer:
         if self.cfg.show_debug:
             self._draw_debug(focus)
         if paused:
-            self._draw_paused()
+            self._draw_paused(started)
         self._draw_controls()
         self._draw_end_status(booster, upper)
 
@@ -943,19 +944,26 @@ class Renderer:
             self.screen.blit(s, (x, y))
             y += 16
 
-    def _draw_paused(self) -> None:
+    def _draw_paused(self, started: bool = True) -> None:
         w, h = self.cfg.screen_width, self.cfg.screen_height
         # Dim overlay
         overlay = pygame.Surface((w, h), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 80))
         self.screen.blit(overlay, (0, 0))
-        # Pause text
-        s = self.font_title.render("PAUSED", True, (255, 255, 100))
-        r = s.get_rect(center=(w // 2, h // 2 - 20))
-        self.screen.blit(s, r)
-        s2 = self.font.render("Press P to resume", True, (180, 180, 180))
-        r2 = s2.get_rect(center=(w // 2, h // 2 + 10))
-        self.screen.blit(s2, r2)
+
+        if not started:
+            # Pre-launch: show START screen
+            s = self.font_title.render("PRESS P TO START", True, (100, 255, 100))
+            r = s.get_rect(center=(w // 2, h // 2 - 20))
+            self.screen.blit(s, r)
+        else:
+            # Mid-flight pause
+            s = self.font_title.render("PAUSED", True, (255, 255, 100))
+            r = s.get_rect(center=(w // 2, h // 2 - 20))
+            self.screen.blit(s, r)
+            s2 = self.font.render("Press P to resume", True, (180, 180, 180))
+            r2 = s2.get_rect(center=(w // 2, h // 2 + 10))
+            self.screen.blit(s2, r2)
 
     def _draw_controls(self) -> None:
         controls = "P=Pause  R=Reset  TAB=Focus  +/-=Zoom  T=Trail  V=Vectors  F3=Debug  Z=AutoZoom  1-4=Warp  ESC=Quit"

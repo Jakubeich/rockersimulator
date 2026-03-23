@@ -1,0 +1,5 @@
+- udělat funkci start kde se ten simulator nezapne automaticky hned po spuštění aplikace ale budu ho moct spustit já tak jak ho můžu pauznout tak ho budu moct i spustit
+
+- dát ty telemetrické data do .gitignore ať to nepushuju do gitu, protože je toho strašně hodně těch dat v tom
+
+- udělat přepínač někde kde si budu moct přepínat mezi různými dalšími scénami simulátoru, kde jedna scéna bude toto celé ta raketa booster se odpojí přistane a upper stage letí odtočí se dosáhne nějaké výšky a znova přistane ale chtěl bych potom udělat další novou scénu kde to bude stejné ale upper stage nepřistane zpátky ale poletí na ISS kde se připojí na ISS jako by vezl astronauty na ISS tak taková bude další scéna a těch scén budeme dělat do budoucna více. zatím chci po tobě přepínač na ty další námi vytvořené scény a tu scénu kterou jsem ti popsal že upper stage přitaně a připojí se na ISS.

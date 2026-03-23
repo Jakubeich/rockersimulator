@@ -40,6 +40,7 @@ class Simulation:
             cfg.vehicle.booster, cfg.vehicle.upper_stage)
 
         self.paused = cfg.simulation.paused_on_start
+        self.started = not cfg.simulation.paused_on_start
         self.running = True
         self.clock = pygame.time.Clock()
         self._phys_acc: float = 0.0
@@ -97,6 +98,8 @@ class Simulation:
             self.running = False
         elif key == pygame.K_p:
             self.paused = not self.paused
+            if not self.paused:
+                self.started = True
         elif key == pygame.K_r:
             self._reset()
         elif key == pygame.K_TAB:
@@ -138,7 +141,8 @@ class Simulation:
             self.telemetry.booster.trajectory,
             self.telemetry.upper.trajectory,
             self.sequencer, self.paused,
-            self._render_alpha)
+            self._render_alpha,
+            self.started)
 
     def _reset(self) -> None:
         cfg = self.cfg
@@ -154,6 +158,7 @@ class Simulation:
         self.sequencer.reset()
         self.telemetry.clear()
         self.paused = cfg.simulation.paused_on_start
+        self.started = not cfg.simulation.paused_on_start
         self._phys_acc = 0.0
 
     def _on_exit(self) -> None:
